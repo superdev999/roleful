@@ -1,0 +1,213 @@
+h1. Role-ful
+
+Roles for you and your objects.
+
+Like it? Then please "recommend me on Working with Rails":http://www.workingwithrails.com/person/7973-pat-nakajima.
+
+h3. Usage
+
+In your class, after including @Roleful@, declare your roles. It's up
+to you to implement a @role@ instance method for your objects that determines
+what kind of permissions they receive.
+
+If an object doesn't have a @role@ method, or if the @role@ returns an invalid
+role, the @:null@ role will be used, which just returns false for all permissions.
+
+h4. Example Class:
+
+<pre>
+class User
+  include Roleful
+  
+  def initialize(name=nil)
+    @role = name
+  end
+  
+  def role
+    @role
+  end
+end
+</pre>
+
+h3. Basic permissions
+
+The @role@ class method allows you to declare permissions for a given role:
+
+<pre>
+class User
+  
+  role :admin do
+    can :view_all_files
+    can :view_all_pages
+  end
+  
+  role :paid do
+    can :view_all_pages
+    can :view_invoice
+  end
+  
+end
+</pre>
+
+gets you:
+
+<pre>
+User.new.null? # => true
+User.new.can?(:view_invoice) # => false
+User.new.can_view_all_pages? # => false
+User.new.can_view_all_files? # => false
+
+User.new(:paid).paid? # => true
+User.new(:paid).can?(:view_invoice) # => true
+User.new(:paid).can_view_all_pages? # => true
+User.new(:paid).can_view_all_files? # => false
+
+User.new(:admin).admin? # => true
+User.new(:admin).can?(:view_invoice) # => false
+User.new(:admin).can_view_all_pages? # => true
+User.new(:admin).can_view_all_files? # => true
+</pre>
+
+h3. Super-users
+
+If you pass @role@ the @:superuser@ option, then objects with that role 
+will be considered super-users, meaning every permission declared for that
+class will be available:
+
+<pre>
+class User
+  
+  role :super_admin, :superuser => true
+  
+end
+</pre>
+
+<pre>
+User.new(:super_admin).can_view_all_pages? # => true
+User.new(:super_admin).can_view_all_files # => true
+User.new(:super_admin).can?(:view_invoice) # => true
+</pre>
+
+h3. Declaring permissions for more than one role
+
+Sometimes you want to add the same permission to multiple roles. To
+do this, simply pass multiple role names when calling @role@, and each
+of the roles will be granted the permissions declared in the block.
+
+Alternatively, you can just pass @:all@ to @role@, and all of your roles
+besides the @:null@ role will be granted the permissions declared in
+the block.
+
+<pre>
+class User
+  role :foo, :bar do
+    can :be_both
+  end
+  
+  role :all do
+    can :pay_the_billz
+  end
+end
+</pre>
+
+<pre>
+User.new(:foo).can_be_both? # => true
+User.new(:bar).can_be_both? # => true
+User.new(:admin).can_be_both? # => false
+
+User.new(:foo).can_pay_the_billz? # => true
+User.new(:bar).can_pay_the_billz? # => true
+User.new(:admin).can_pay_the_billz? # => true
+
+# The :null role still returns false
+User.new(:null).can_pay_the_billz? # => false
+</pre>
+
+h3. Objects with more than one role
+
+If an object's @role@ returns an @Array@, then the object will be
+granted all of the roles in that @Array@.
+
+<pre>
+class User
+  role :foo do
+    can :be_foo
+  end
+  
+  role :bar do
+    can :be_bar
+  end
+end
+</pre>
+
+<pre>
+user = User.new([:foo, :bar])
+
+user.foo? # => true
+user.bar? # => true
+
+user.can_be_foo? # => true
+user.can_be_bar? # => true
+</pre>
+
+h3. Advanced Permissions
+
+Sometimes a permission is contingent upon some other conditions being
+met. You can handle these situations by passing the @can@ call a block.
+This block will be called in the context of your object:
+
+<pre>
+class User
+  role :thinker do
+    can :be_self do |that|
+      self == that
+    end
+  end
+end
+</pre>
+
+<pre>
+me  = User.new(:thinker)
+you = User.new(:thinker)
+
+me.can_be_self?(me) # => true
+me.can_be_self?(you) # => false
+</pre>
+
+h3. Role contexts
+
+If you want to temporarily give an object a role, you can use the @with_role@
+method:
+
+<pre>
+class User
+  role :admin do
+    can :do_anything
+  end
+end
+</pre>
+
+<pre>
+user = User.new
+
+user.admin? # => false
+user.can_do_anything? # => false
+
+user.with_role(:admin) do
+  user.admin? # => true
+  user.can_do_anything? # => true
+end
+
+user.admin? # => false
+user.can_do_anything? # => false
+</pre>
+
+h3. Install
+
+Install roleful like so:
+
+  gem install nakajima-roleful --source=http://gems.github.com
+
+"View the CI build":http://ci.patnakajima.com/nakajima-roleful
+
+@(c) Copyright 2008 Pat Nakajima, released under the MIT license@
